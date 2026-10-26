@@ -5,8 +5,6 @@ Upload a report, inspect the data, calculate statistics, visualize a numeric
 column, and generate a deterministic summary. An optional LLM summary can be
 enabled with an OpenAI-compatible API key.
 
-**Repository:** https://github.com/CristinaPopescu25/AI-Report-Assistant
-
 ![AI Report Assistant interface](docs/screenshot.png)
 
 ## Why this project
