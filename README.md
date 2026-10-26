@@ -1,40 +1,80 @@
 # AI Report Assistant
 
-O aplicație web locală, construită cu **Python**, **Streamlit** și **pandas**, care
-analizează un fișier CSV și generează automat un rezumat pe bază de reguli.
+A local-first CSV analysis app built with **Python**, **Streamlit**, and **pandas**.
+Upload a report, inspect the data, calculate statistics, visualize a numeric
+column, and generate a deterministic summary. An optional LLM summary can be
+enabled with an OpenAI-compatible API key.
 
-Aplicația este prima versiune funcțională: **nu folosește un LLM, un API AI sau
-servicii cloud**. Toate datele rămân pe calculatorul local.
+**Repository:** https://github.com/CristinaPopescu25/AI-Report-Assistant
 
-## Funcționalități
+![AI Report Assistant interface](docs/screenshot.png)
 
-- încărcarea unui fișier CSV cu separator virgulă sau punct-virgulă;
-- previzualizarea datelor într-un tabel;
-- afișarea numărului de rânduri și coloane;
-- detectarea automată a coloanelor numerice, fără a presupune numele acestora;
-- calcularea sumei, mediei, minimului, medianei, maximului și numărului de
-  valori lipsă pentru fiecare coloană numerică;
-- selectarea unei coloane numerice și afișarea graficului cu bare sau cu linii;
-- generarea și descărcarea rezumatului automat, ca fișier Markdown;
-- mesaje clare pentru fișiere goale, invalide, fără antet sau fără date numerice;
-- fișier demonstrativ inclus: `sample_report.csv` (date fictive).
+## Why this project
 
-## Structura proiectului
+This is a small portfolio project focused on the practical parts of a data/AI
+workflow:
+
+- safe CSV ingestion and validation;
+- data profiling with pandas;
+- a clear, testable Streamlit interface;
+- deterministic summaries with an optional, privacy-conscious LLM layer.
+
+The application works fully offline by default. No API key is required unless
+the optional AI summary is enabled.
+
+## Features
+
+- Upload comma-separated or semicolon-separated CSV files.
+- Automatic delimiter detection and UTF-8 BOM support.
+- Table preview plus row, column, and numeric-column counts.
+- Numeric column detection without assuming column names.
+- Sum, mean, minimum, median, maximum, and missing-value counts.
+- Bar and line charts for a selected numeric column.
+- Deterministic, rule-based summary generated in Python.
+- Download the rule-based summary as a Markdown file.
+- Optional AI summary through an OpenAI-compatible API, with a rule-based
+  fallback when the key is missing or the request fails.
+- Clear validation messages for empty, malformed, header-only, non-UTF-8, or
+  non-numeric files.
+- Fictional demo dataset included.
+- Automated tests with no real API calls.
+
+## Screenshot
+
+The screenshot above shows the app loaded with the included demo data. The
+interface is in Romanian; the documentation is in English for portfolio
+readability.
+
+## Tech stack
+
+- Python 3.14.3 (development and test environment)
+- Streamlit 1.66.1
+- pandas 3.1.0
+- OpenAI Python SDK 3.38.0 (optional AI summary)
+- Python `unittest` for tests
+
+No database, Docker, cloud storage, or external deployment is required.
+
+## Project structure
 
 ```text
 .
-├── app.py               # aplicația Streamlit și logica de analiză
-├── requirements.txt     # dependențele, cu versiuni fixate
-├── sample_report.csv    # date demonstrative fictive
+├── app.py
+├── requirements.txt
+├── sample_report.csv
+├── .streamlit/
+│   └── secrets.toml.example
+├── docs/
+│   └── screenshot.png
 ├── tests/
-│   └── test_app.py      # teste pentru logică și pentru pornirea aplicației
+│   └── test_app.py
 ├── .gitignore
 └── README.md
 ```
 
-## Instalare pe Windows
+## Installation on Windows
 
-Deschide **PowerShell** în folderul proiectului:
+Open PowerShell in the project folder:
 
 ```powershell
 cd "C:\Users\crist\Documents\Default Project"
@@ -43,94 +83,148 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Dacă PowerShell blochează activarea mediului virtual, folosește direct
-executabilul din `.venv`, fără activare:
+If PowerShell blocks the activation script, skip activation and use the
+virtual environment's Python executable directly:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Pornire
+## Run the app
 
-Cu mediul virtual activat:
+With the virtual environment activated:
 
 ```powershell
 python -m streamlit run app.py
 ```
 
-Sau fără activare:
+Or without activation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Deschide în browser adresa afișată în terminal:
+Open the local address shown in the terminal:
 
 ```text
 http://localhost:8501
 ```
 
-## Utilizare
+Press `Ctrl+C` in the terminal to stop the app.
 
-1. La prima deschidere, opțiunea **Folosește fișierul demonstrativ** este bifată,
-   deci aplicația afișează imediat datele din `sample_report.csv`.
-2. Pentru date proprii, încarcă un fișier CSV în zona de upload. Fișierul încărcat
-   are prioritate față de datele demonstrative.
-3. Verifică tabelul, statisticile și rezumatul generat automat.
-4. Alege o coloană numerică din lista **Alege o coloană numerică** și tipul de
-   grafic (**Bare** sau **Linii**).
-5. Folosește butonul **Descarcă rezumatul (Markdown)** pentru a salva rezumatul
-   generat.
+## Usage
 
-Pentru a opri aplicația, apasă `Ctrl+C` în terminal.
+1. The **Use demo data** option is enabled by default, so the app opens with
+   `sample_report.csv`.
+2. Upload your own CSV to replace the demo data.
+3. Review the row, column, and numeric-column metrics.
+4. Inspect the preview table and the statistics for numeric columns.
+5. Choose a numeric column and a chart type (**Bars** or **Lines**).
+6. Download the deterministic summary as a Markdown file.
+7. Optionally enable the AI summary by following the configuration section
+   below.
 
-## Cerințe pentru fișierul CSV
+## CSV requirements and limitations
 
-- prima linie trebuie să conțină numele coloanelor;
-- separatorul poate fi virgula sau punctul-virgulă și este detectat automat;
-- codificarea recomandată este UTF-8;
-- coloanele numerice trebuie să conțină numere simple (de exemplu `1250` sau
-  `1250.50`, cu punct zecimal);
-- coloanele text sunt afișate, dar nu sunt incluse în sume, medii sau grafic.
+- The first row must contain column names.
+- The delimiter can be a comma or a semicolon; it is detected automatically.
+- UTF-8 encoding is recommended; a UTF-8 BOM is supported.
+- Numeric columns must contain actual numbers, for example `1250` or `1250.50`.
+- Text columns are displayed but are not included in statistics or charts.
+- The app does not assume specific column names.
+- **Known limitation:** decimal commas such as `1250,50` are not converted
+  automatically. Use a decimal point or normalize the values before uploading.
 
-Aplicația nu presupune nume de coloane. Detectează automat coloanele numerice.
+## Optional AI summary
 
-**Limitare cunoscută:** valorile cu virgulă zecimală (de exemplu `1250,50`) nu
-sunt convertite automat în numere în această versiune. Folosește punctul zecimal
-sau înlocuiește virgula zecimală înainte de upload.
+The AI layer is disabled by default. To enable it:
 
-## Testare
+1. Copy the example secrets file:
+
+   ```powershell
+   Copy-Item .streamlit\secrets.toml.example .streamlit\secrets.toml
+   ```
+
+2. Open `.streamlit\secrets.toml` in an editor and set your API key:
+
+   ```toml
+   [llm]
+   api_key = "sk-your-api-key-here"
+   model = "gpt-4o-mini"
+   ```
+
+   For another OpenAI-compatible provider, also set `base_url`.
+
+3. Restart the app.
+
+The app sends **only aggregate statistics and column names** to the configured
+provider, not the raw CSV rows. The rule-based summary remains available as a
+fallback. API usage may incur costs from your provider.
+
+`.streamlit/secrets.toml` is excluded by `.gitignore`. Never commit real API
+keys. The repository includes only the placeholder
+`.streamlit/secrets.toml.example`.
+
+## Tests
+
+Run the full test suite:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Testele verifică încărcarea CSV-ului demonstrativ, separatoarele virgulă și
-punct-virgulă, validările, calculele statistice, rezumatul generat, prezența
-butonului de descărcare și pornirea aplicației cu datele demo.
+The 18 tests cover:
 
-## Depanare
+- CSV loading, delimiter detection, and validation errors;
+- numeric column detection and descriptive statistics;
+- rule-based summaries;
+- privacy of the LLM prompt (no raw values);
+- mocked API responses and empty-response handling;
+- Streamlit UI smoke tests.
 
-- **Portul 8501 este ocupat**: pornește aplicația pe alt port:
+No test makes a real network request.
 
-  ```powershell
-  python -m streamlit run app.py --server.port 8502
-  ```
+## Troubleshooting
 
-  Apoi deschide `http://localhost:8502`.
+**Port 8501 is already in use**
 
-- **Fișierul nu este citit**: verifică faptul că este un CSV cu separator virgulă
-  sau punct-virgulă, cu antet și codificare UTF-8.
-- **Nu apar coloane numerice**: verifică dacă valorile sunt numere, nu text
-  (de exemplu `"10"` cu ghilimele sau `1.250,50` pot fi interpretate ca text).
+Start the app on another port:
 
-## Limitări intenționate în această versiune
+```powershell
+python -m streamlit run app.py --server.port 8502
+```
 
-- fără integrare LLM sau API AI;
-- fără baze de date, Docker sau servicii cloud;
-- fără autentificare sau publicare online;
-- două tipuri de grafic (bare și linii), generate cu componentele incluse în
-  Streamlit.
+Then open `http://localhost:8502`.
 
-Următoarea etapă poate adăuga un rezumat asistat de LLM, păstrând analiza de bază
-funcțională local.
+**The app does not find the CSV**
+
+Use a CSV with a header, UTF-8 encoding, and a comma or semicolon delimiter.
+
+**No numeric columns are detected**
+
+Check that the values are real numbers, not quoted text or decimal-comma
+values. For example, `1250.50` works, while `"1250,50"` is treated as text.
+
+**The AI summary is disabled**
+
+Verify that `.streamlit/secrets.toml` exists, contains an `[llm]` section, and
+includes a non-empty `api_key`. Restart Streamlit after changing secrets.
+
+## Scope and limitations
+
+This is a local MVP, intentionally kept small:
+
+- no authentication, database, Docker, or deployment;
+- no automatic handling of decimal commas;
+- no PDF or Excel ingestion;
+- no GitHub Actions in this version;
+- one optional AI provider interface via the OpenAI-compatible API.
+
+## Data and privacy
+
+The demo dataset is fictional and contains no personal or banking data.
+
+The base app runs locally and does not send data anywhere. If the optional AI
+summary is enabled, aggregate statistics and column names are sent to the
+configured provider. Do not upload confidential, client, or personal data
+without the appropriate privacy and security review.

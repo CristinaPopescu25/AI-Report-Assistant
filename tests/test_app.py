@@ -6,6 +6,8 @@ import io
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pandas as pd
 from streamlit.testing.v1 import AppTest
@@ -119,6 +121,52 @@ class NumericAnalysisTests(unittest.TestCase):
         df = app.load_csv(io.StringIO("valoare\n10\ntext\n30\n"))
 
         self.assertEqual(app.find_numeric_columns(df), [])
+
+
+class LlmTests(unittest.TestCase):
+    def setUp(self):
+        self.df = pd.DataFrame(
+            {
+                "client": ["Nume Confidențial", "Client B", "Client C"],
+                "valoare": [10, 20, 30],
+            }
+        )
+
+    def test_prompt_contains_statistics_but_not_raw_values(self):
+        prompt = app.build_llm_prompt(self.df, ["valoare"])
+
+        self.assertIn("valoare", prompt)
+        self.assertIn("sumă=60", prompt)
+        self.assertIn("client", prompt)
+        self.assertNotIn("Nume Confidențial", prompt)
+
+    def test_generate_ai_summary_calls_openai_client(self):
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="Rezumat AI."))]
+        )
+
+        with patch("openai.OpenAI") as client_class:
+            client_class.return_value.chat.completions.create.return_value = response
+            summary = app.generate_ai_summary(
+                "prompt de test",
+                {"api_key": "test-key", "model": "test-model"},
+            )
+
+        self.assertEqual(summary, "Rezumat AI.")
+        client_class.assert_called_once_with(api_key="test-key")
+        request = client_class.return_value.chat.completions.create.call_args.kwargs
+        self.assertEqual(request["model"], "test-model")
+        self.assertEqual(request["messages"][1]["content"], "prompt de test")
+
+    def test_empty_ai_response_has_clear_error(self):
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="   "))]
+        )
+
+        with patch("openai.OpenAI") as client_class:
+            client_class.return_value.chat.completions.create.return_value = response
+            with self.assertRaisesRegex(ValueError, "răspuns gol"):
+                app.generate_ai_summary("prompt", {"api_key": "test-key"})
 
 
 class AppSmokeTests(unittest.TestCase):

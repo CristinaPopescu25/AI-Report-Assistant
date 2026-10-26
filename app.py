@@ -1,4 +1,4 @@
-"""AI Report Assistant: analiză locală a unui fișier CSV, fără API AI."""
+"""AI Report Assistant: analiză locală a unui fișier CSV, cu rezumat AI opțional."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 DEMO_PATH = Path(__file__).with_name("sample_report.csv")
+DEFAULT_LLM_MODEL = "gpt-4o-mini"
 
 
 def _read_sample(source, size: int = 4096) -> str:
@@ -141,12 +142,143 @@ def build_summary(df: pd.DataFrame, numeric_columns: list[str]) -> str:
     return "\n\n".join(lines)
 
 
+def get_llm_config() -> dict[str, str]:
+    """Read optional LLM settings from Streamlit secrets."""
+    try:
+        if "llm" not in st.secrets:
+            return {}
+        llm_settings = st.secrets["llm"]
+    except Exception:
+        return {}
+
+    api_key = str(llm_settings.get("api_key", "")).strip()
+    if not api_key:
+        return {}
+
+    config = {
+        "api_key": api_key,
+        "model": str(llm_settings.get("model", DEFAULT_LLM_MODEL)).strip()
+        or DEFAULT_LLM_MODEL,
+    }
+    base_url = str(llm_settings.get("base_url", "")).strip()
+    if base_url:
+        config["base_url"] = base_url
+    return config
+
+
+def build_llm_prompt(df: pd.DataFrame, numeric_columns: list[str]) -> str:
+    """Build a prompt with aggregate statistics only, without raw data rows."""
+    stats = column_stats(df, numeric_columns)
+    if stats.empty:
+        statistics_text = "- Nu există coloane numerice."
+    else:
+        statistics_text = "\n".join(
+            f"- {row['Coloană']}: sumă={row['Sumă']}, medie={row['Medie']}, "
+            f"minim={row['Minim']}, mediană={row['Mediană']}, maxim={row['Maxim']}, "
+            f"valori lipsă={row['Valori lipsă']}"
+            for _, row in stats.iterrows()
+        )
+
+    column_names = ", ".join(str(column) for column in df.columns)
+    numeric_names = ", ".join(numeric_columns) or "niciuna"
+    text_columns = [
+        str(column) for column in df.columns if column not in numeric_columns
+    ]
+
+    return (
+        "Analizează statisticile de mai jos și scrie un rezumat clar pentru un "
+        "raport de business, în limba română, de maximum 150 de cuvinte. "
+        "Menționează dimensiunea setului de date, cele mai relevante coloane "
+        "numerice și una sau două observații practice. Nu inventa valori și "
+        "folosește doar statisticile furnizate.\n\n"
+        f"Rânduri: {df.shape[0]}\n"
+        f"Coloane: {df.shape[1]}\n"
+        f"Numele coloanelor: {column_names}\n"
+        f"Coloane numerice: {numeric_names}\n"
+        f"Coloane text: {', '.join(text_columns) or 'niciuna'}\n"
+        "Statistici numerice:\n"
+        f"{statistics_text}"
+    )
+
+
+def generate_ai_summary(prompt: str, config: dict[str, str]) -> str:
+    """Generate a summary with an OpenAI-compatible chat completion API."""
+    from openai import OpenAI
+
+    client_options = {"api_key": config["api_key"]}
+    if config.get("base_url"):
+        client_options["base_url"] = config["base_url"]
+
+    client = OpenAI(**client_options)
+    response = client.chat.completions.create(
+        model=config.get("model", DEFAULT_LLM_MODEL),
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ești un analist de date riguros. Răspunde doar pe baza "
+                    "statisticilor primite și nu inventa valori."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+    )
+    content = response.choices[0].message.content
+    if not content or not content.strip():
+        raise ValueError("Furnizorul AI a returnat un răspuns gol.")
+    return content.strip()
+
+
+def render_llm_summary(
+    df: pd.DataFrame,
+    numeric_columns: list[str],
+    llm_config: dict[str, str],
+    context_key: str,
+) -> None:
+    """Show the optional AI summary and keep its result per loaded dataset."""
+    st.subheader("Rezumat AI (opțional)")
+    if not llm_config:
+        st.caption(
+            "Rezumatul AI este dezactivat. Adaugă cheia API în "
+            "`.streamlit/secrets.toml` pentru a-l activa; rezumatul pe bază "
+            "de reguli rămâne disponibil."
+        )
+        return
+
+    st.caption(
+        "Se trimit către furnizorul AI doar statistici agregate și numele "
+        "coloanelor, nu rândurile brute."
+    )
+    if st.button("Generează rezumatul AI"):
+        with st.spinner("Se generează rezumatul AI..."):
+            try:
+                summary = generate_ai_summary(
+                    build_llm_prompt(df, numeric_columns),
+                    llm_config,
+                )
+            except Exception as exc:
+                st.session_state.pop("ai_summary", None)
+                st.session_state.pop("ai_summary_key", None)
+                st.error(f"Rezumatul AI nu a putut fi generat: {exc}")
+            else:
+                st.session_state["ai_summary"] = summary
+                st.session_state["ai_summary_key"] = context_key
+
+    if (
+        st.session_state.get("ai_summary_key") == context_key
+        and st.session_state.get("ai_summary")
+    ):
+        st.markdown(st.session_state["ai_summary"])
+
+
 def render_summary(
     df: pd.DataFrame,
     numeric_columns: list[str],
     source_name: str,
+    llm_config: dict[str, str],
 ) -> None:
-    """Show the rule-based summary and offer it as a Markdown download."""
+    """Show the rule-based summary, its download, and the optional AI summary."""
     summary = build_summary(df, numeric_columns)
     st.subheader("Rezumat automat")
     st.markdown(summary)
@@ -157,6 +289,12 @@ def render_summary(
         mime="text/markdown",
     )
 
+    context_key = (
+        f"{source_name}|{df.shape[0]}|{df.shape[1]}|"
+        f"{','.join(map(str, numeric_columns))}"
+    )
+    render_llm_summary(df, numeric_columns, llm_config, context_key)
+
 
 def main() -> None:
     st.set_page_config(
@@ -166,7 +304,10 @@ def main() -> None:
     )
 
     st.title("AI Report Assistant")
-    st.caption("Analizează local un fișier CSV. Datele nu părăsesc calculatorul.")
+    st.caption(
+        "Analizează local un fișier CSV. Rezumatul AI este opțional și "
+        "trimite doar statistici agregate."
+    )
 
     uploaded_file = st.file_uploader("Încarcă un fișier CSV", type=["csv"])
     use_demo = st.checkbox(
@@ -198,6 +339,7 @@ def main() -> None:
 
     st.success(f"Fișier încărcat: **{source_name}**")
 
+    llm_config = get_llm_config()
     numeric_columns = find_numeric_columns(df)
     row_count, column_count = df.shape
 
@@ -224,7 +366,7 @@ def main() -> None:
             "Fișierul nu conține coloane numerice. "
             "Sumele, mediile și graficul nu pot fi calculate."
         )
-        render_summary(df, numeric_columns, source_name)
+        render_summary(df, numeric_columns, source_name, llm_config)
         return
 
     st.subheader("Statistici pentru coloanele numerice")
@@ -252,7 +394,7 @@ def main() -> None:
     else:
         st.bar_chart(chart_data, y=selected_column, height=320)
 
-    render_summary(df, numeric_columns, source_name)
+    render_summary(df, numeric_columns, source_name, llm_config)
 
 
 if __name__ == "__main__":
