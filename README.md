@@ -58,6 +58,7 @@ No database, Docker, cloud storage, or external deployment is required.
 ```text
 .
 ├── app.py
+├── run.bat
 ├── requirements.txt
 ├── sample_report.csv
 ├── .streamlit/
@@ -90,7 +91,10 @@ virtual environment's Python executable directly:
 
 ## Run the app
 
-With the virtual environment activated:
+On Windows, double-click `run.bat`. It starts the app with the project's
+virtual environment and opens the browser.
+
+Alternatively, from a terminal with the virtual environment activated:
 
 ```powershell
 python -m streamlit run app.py
@@ -100,6 +104,19 @@ Or without activation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+To use another port, pass the usual Streamlit options:
+
+```powershell
+.\run.bat --server.port 8502
+```
+
+Streamlit may be reachable from other devices on your network. To restrict
+access to this computer only:
+
+```powershell
+.\run.bat --server.address 127.0.0.1
 ```
 
 Open the local address shown in the terminal:
